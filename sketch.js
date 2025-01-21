@@ -46,7 +46,18 @@ let letterSize = 20; // size of the letter
 // sound
 let soundFile;
 
+// Add these variables at the top with other variables
+let mic;
+let fft;
+let audioLevel = 0;
+let micStarted = false;
+
 // let parentDiv;
+
+// Add these variables at the top
+let prevPoints = {};
+let velocities = {};
+
 function preload() {
   soundFile = loadSound('emergence2.mp3');
 }
@@ -54,12 +65,21 @@ function preload() {
 
 /* - - Setup - - */
 function setup() {
-
   createCanvas(windowWidth, windowHeight);
-  captureWebcam(); // launch webcam
-  // make the camera input clack and white
+  captureWebcam();
 
+  // Initialize audio input
+  mic = new p5.AudioIn();
   
+  // Request microphone access
+  mic.start(() => {
+    console.log('Microphone started');
+  }, () => {
+    console.log('Microphone permission denied');
+  });
+  
+  fft = new p5.FFT();
+  fft.setInput(mic);
 
   // styling
   noStroke();
@@ -67,14 +87,18 @@ function setup() {
   textSize(20);
   fill(255);
 
+  // Add in setup()
+  let startButton = createButton('Start Audio');
+  startButton.position(20, 20);
+  startButton.mousePressed(startMic);
 }
 
 
 /* - - Draw - - */
 function draw() {
 
-  // background(0);
-
+  // Update background color (add at the start of draw())
+  background(1, 22, 39);  // rich-black: #011627
 
   /* WEBCAM */
   push();
@@ -189,52 +213,606 @@ function draw() {
     push();
     centerOurStuff();
 
-  
-  //     // puppet lines
-  // strokeWeight(5);
-  // stroke('grey');
-  // line(rightShoulderX, rightShoulderY, rightShoulderX, 0); // nose to left shoulder
-  // line(leftShoulderX, leftShoulderY, leftShoulderX, 0); // nose to right shoulder
-  
-  // line(rightElbowX, rightElbowY, rightElbowX, 0); // right shoulder to right elbow
-  // line(leftElbowX, leftElbowY, leftElbowX, 0); // shoulder to elbow
-  // line(rightWristX, rightWristY, rightWristX, 0); // right wrist to right hand
-  // line(leftWristX, leftWristY, leftWristX, 0); // left wrist to left hand
-  // line(hipX, hipY, hipX, 0); // right shoulder to right hip
-  // line(hipX2, hipY2, hipX2, 0); // left shoulder to left hip
-  // line(kneeX, kneeY, kneeX, 0); // right hip to right knee
-  // line(kneeX2, kneeY2, kneeX2, 0); // left hip to left knee
-  // line(rightHandX, rightHandY, rightHandX, 0); // right knee to right ankle
-  // line(leftHandX, leftHandY, leftHandX, 0); // left knee to left ankle
+    // Add this function before drawing the cilia
+    function drawOrganicLine(startX, startY, endX, endY, color) {
+      // Get current audio level
+      audioLevel = micStarted ? mic.getLevel() * 2 : 0;
+      
+      let points = [];
+      let segments = 15;
+      let amplitude = 30 + (audioLevel * 100);  // Wave movement
+      let timeOffset = frameCount * 0.02;
+      
+      // Generate control points for the organic line
+      for (let i = 0; i <= segments; i++) {
+        let t = i / segments;
+        let x = lerp(startX, endX, t);
+        let y = lerp(startY, endY, t);
+        
+        // Add organic movement affected by audio
+        let wave = sin(t * PI * 2 + timeOffset) * amplitude;
+        let wave2 = cos(t * PI * 3 + timeOffset * 1.5) * amplitude * 0.5;
+        
+        x += wave;
+        y += wave2;
+        
+        points.push({x, y});
+      }
+      
+      // Draw the main flowing line with audio-reactive thickness
+      noFill();
+      strokeWeight(15 + (audioLevel * 30));     // Line thickness
+      stroke(color.r, color.g, color.b, 40 + (audioLevel * 100));  // Opacity
+      beginShape();
+      curveVertex(points[0].x, points[0].y);
+      points.forEach(p => curveVertex(p.x, p.y));
+      curveVertex(points[points.length-1].x, points[points.length-1].y);
+      endShape();
+      
+      // Draw glowing core
+      strokeWeight(8 + (audioLevel * 20));
+      stroke(color.r, color.g, color.b, 60 + (audioLevel * 150));
+      beginShape();
+      curveVertex(points[0].x, points[0].y);
+      points.forEach(p => curveVertex(p.x, p.y));
+      curveVertex(points[points.length-1].x, points[points.length-1].y);
+      endShape();
+      
+      // Draw particles along the line
+      noStroke();
+      for (let i = 1; i < points.length - 1; i++) {
+        let p = points[i];
+        let size = (8 + (audioLevel * 20)) * sin(i * 0.5 + timeOffset * 2);
+        fill(color.r, color.g, color.b, 100 + (audioLevel * 155));
+        ellipse(p.x, p.y, size, size);
+      }
+    }
 
-    // skeleton
-    stroke('white');
-    strokeWeight(20);
-    line(rightShoulderX, rightShoulderY, leftShoulderX, leftShoulderY); // nose to left shoulder
-    line(rightShoulderX, rightShoulderY, rightElbowX, rightElbowY); // nose to right shoulder
-    line(rightElbowX, rightElbowY, rightWristX, rightWristY); // right shoulder to right elbow  
-    line(leftShoulderX, leftShoulderY, leftElbowX, leftElbowY); // shoulder to elbow
-    line(leftElbowX, leftElbowY, leftWristX, leftWristY); // elbow to wrist
-    line(rightWristX, rightWristY, rightHandX, rightHandY); // right wrist to right hand  
-    line(leftWristX, leftWristY, leftHandX, leftHandY); // left wrist to left hand
-    line(rightShoulderX, rightShoulderY, hipX, hipY); // right shoulder to right hip
-    line(leftShoulderX, leftShoulderY, hipX2, hipY2); // left shoulder to left hip
-    line(hipX, hipY, kneeX, kneeY); // right hip to right knee
-    line(hipX2, hipY2, kneeX2, kneeY2); // left hip to left knee
-    line(kneeX, kneeY, ankleX, ankleY); // right knee to right ankle
-    line(kneeX2, kneeY2, ankleX2, ankleY2); // left knee to left ankle
-    line(ankleX, ankleY, rightFootX, rightFootY); // right ankle to right foot
-    line(ankleX2, ankleY2, leftFootX, leftFootY); // left ankle to left foot
-    line(rightFootX, rightFootY, rightFoot2X, rightFoot2Y); // right foot to right foot2
-    line(leftFootX, leftFootY, leftFoot2X, leftFoot2Y); // left foot to left foot2
-    line(hipX, hipY, hipX2, hipY2); // right hip to left hip
-    line((rightShoulderX + leftShoulderX)/2, (rightShoulderY + leftShoulderY)/2, noseX, noseY); // right shoulder to right elbow
-   
+    // Modify the getVelocity function to include acceleration
+    function getVelocity(id, x, y) {
+      if (!prevPoints[id]) {
+        prevPoints[id] = {
+          x: x, 
+          y: y,
+          vx: 0,
+          vy: 0,
+          lastVx: 0,
+          lastVy: 0
+        };
+        velocities[id] = 0;
+      }
+      
+      let dx = x - prevPoints[id].x;
+      let dy = y - prevPoints[id].y;
+      
+      // Calculate velocity
+      prevPoints[id].lastVx = prevPoints[id].vx;
+      prevPoints[id].lastVy = prevPoints[id].vy;
+      prevPoints[id].vx = dx;
+      prevPoints[id].vy = dy;
+      
+      // Calculate acceleration
+      let ax = prevPoints[id].vx - prevPoints[id].lastVx;
+      let ay = prevPoints[id].vy - prevPoints[id].lastVy;
+      let acceleration = sqrt(ax * ax + ay * ay);
+      
+      // Update position
+      prevPoints[id].x = x;
+      prevPoints[id].y = y;
+      
+      return {velocity: sqrt(dx * dx + dy * dy), acceleration};
+    }
 
-    // draw labels
-    fill('red');
-    textSize(letterSize);
-    noStroke();
+    // Add this function at the start to calculate color based on hand position
+    function getColorBasedOnHandPosition() {
+      // Calculate chest center
+      let centerX = (leftShoulderX + rightShoulderX) / 2;
+      let centerY = ((leftShoulderY + rightShoulderY) / 2 + (hipY + hipY2) / 2) / 2;
+      
+      // Get reference heights
+      let headHeight = noseY;
+      let hipHeight = (hipY + hipY2) / 2;
+      let highestHandY = min(leftHandY, rightHandY);  // Higher hands = smaller Y
+      let lowestHandY = max(leftHandY, rightHandY);
+      
+      // Calculate distances for white transition
+      let leftHandDist = dist(leftHandX, leftHandY, centerX, centerY);
+      let rightHandDist = dist(rightHandX, rightHandY, centerX, centerY);
+      let whiteTransition = map(min(leftHandDist, rightHandDist), 100, 300, 1, 0);
+      whiteTransition = constrain(whiteTransition, 0, 1);
+      
+      // Calculate turquoise transition when hands are above head
+      let turquoiseTransition = 0;
+      if (highestHandY < headHeight) {
+        turquoiseTransition = map(highestHandY, headHeight - 200, headHeight, 1, 0);
+        turquoiseTransition = constrain(turquoiseTransition, 0, 1);
+      }
+      
+      // Calculate yellow transition when hands are below hips
+      let yellowTransition = 0;
+      if (lowestHandY > hipHeight) {
+        yellowTransition = map(lowestHandY, hipHeight, hipHeight + 200, 0, 1);
+        yellowTransition = constrain(yellowTransition, 0, 1);
+      }
+      
+      // Base color (red-pantone)
+      let baseColor = {
+        r: 231,
+        g: 29,
+        b: 54
+      };
+      
+      // White color
+      let whiteColor = {
+        r: 253,
+        g: 255,
+        b: 252
+      };
+      
+      // Turquoise color (light-sea-green)
+      let turquoiseColor = {
+        r: 46,
+        g: 196,
+        b: 182
+      };
+      
+      // Yellow color (orange-peel)
+      let yellowColor = {
+        r: 255,
+        g: 159,
+        b: 28
+      };
+      
+      // First interpolate between red and white based on proximity
+      let intermediateColor = {
+        r: lerp(baseColor.r, whiteColor.r, whiteTransition),
+        g: lerp(baseColor.g, whiteColor.g, whiteTransition),
+        b: lerp(baseColor.b, whiteColor.b, whiteTransition)
+      };
+      
+      // Then interpolate to turquoise for high hands
+      intermediateColor = {
+        r: lerp(intermediateColor.r, turquoiseColor.r, turquoiseTransition),
+        g: lerp(intermediateColor.g, turquoiseColor.g, turquoiseTransition),
+        b: lerp(intermediateColor.b, turquoiseColor.b, turquoiseTransition)
+      };
+      
+      // Finally interpolate to yellow for low hands
+      return {
+        r: lerp(intermediateColor.r, yellowColor.r, yellowTransition),
+        g: lerp(intermediateColor.g, yellowColor.g, yellowTransition),
+        b: lerp(intermediateColor.b, yellowColor.b, yellowTransition)
+      };
+    }
+
+    // Update the colors object to use dynamic color
+    const baseColor = getColorBasedOnHandPosition();
+    const colors = {
+      head: baseColor,
+      torso: baseColor,
+      arms: baseColor,
+      hands: baseColor,
+      legs: baseColor
+    };
+
+    // Add this function to calculate growth factor based on hand height
+    function getGrowthFactor() {
+      // Get head (nose) height as reference
+      let headHeight = noseY;
+      // Get highest hand position
+      let handHeight = min(leftHandY, rightHandY);
+      
+      // Calculate growth factor when hands go above head
+      let growthFactor = 1;
+      if (handHeight < headHeight) {
+        // Map growth from 1 to 2 based on how high hands are above head
+        growthFactor = map(handHeight, headHeight - 200, headHeight, 2, 1);
+        growthFactor = constrain(growthFactor, 1, 2);
+      }
+      
+      return growthFactor;
+    }
+
+    // Modify drawElasticLine function to include growth
+    function drawElasticLine(x1, y1, x2, y2, thickness, baseColor, id) {
+      let growthFactor = getGrowthFactor();
+      
+      // Scale positions from center
+      let centerX = (leftShoulderX + rightShoulderX) / 2;
+      let centerY = ((leftShoulderY + rightShoulderY) / 2 + (hipY + hipY2) / 2) / 2;
+      
+      // Apply growth to positions
+      x1 = centerX + (x1 - centerX) * growthFactor;
+      y1 = centerY + (y1 - centerY) * growthFactor;
+      x2 = centerX + (x2 - centerX) * growthFactor;
+      y2 = centerY + (y2 - centerY) * growthFactor;
+      
+      // Scale thickness
+      thickness = thickness * growthFactor;
+      
+      // Use the dynamic color instead of the passed baseColor
+      baseColor = getColorBasedOnHandPosition();
+      
+      // Store color for particles
+      if (prevPoints[id]) {
+        prevPoints[id].color = baseColor;
+      }
+      
+      // Calculate velocity and acceleration for color change
+      let motion = getVelocity(id, (x1 + x2)/2, (y1 + y2)/2);
+      let speedMultiplier = map(motion.velocity, 0, 50, 0, 1);
+      let accelMultiplier = map(motion.acceleration, 0, 10, 0, 1);
+      
+      // Create dynamic color based on movement
+      let dynamicColor = {
+        r: baseColor.r + sin(frameCount * 0.05) * 50 * speedMultiplier + accelMultiplier * 100,
+        g: baseColor.g + cos(frameCount * 0.03) * 50 * speedMultiplier,
+        b: baseColor.b + sin(frameCount * 0.04) * 50 * speedMultiplier
+      };
+      
+      // Calculate spring effect
+      let distance = dist(x1, y1, x2, y2);
+      let springForce = map(distance, 0, 200, 0, 40);
+      let midPointOffset = sin(frameCount * 0.05) * springForce;
+      
+      // Rest of the elastic line code remains the same, but use dynamicColor instead of color
+      let mx = (x1 + x2) / 2;
+      let my = (y1 + y2) / 2;
+      
+      let perpX = -(y2 - y1) / distance * midPointOffset;
+      let perpY = (x2 - x1) / distance * midPointOffset;
+      
+      // Draw elastic glow effect with dynamic color
+      noFill();
+      for(let i = thickness*3; i > 0; i-=2) {
+        let alpha = map(i, thickness*3, 0, 30 + (speedMultiplier * 50), 0);
+        stroke(dynamicColor.r, dynamicColor.g, dynamicColor.b, alpha);
+        strokeWeight(i + sin(frameCount * 0.1) * 2);
+        
+        beginShape();
+        vertex(x1, y1);
+        // Add multiple curve segments for more organic feel
+        for(let t = 0; t <= 1; t += 0.2) {
+          let px = bezierPoint(x1, mx + perpX, mx + perpX, x2, t);
+          let py = bezierPoint(y1, my + perpY, my + perpY, y2, t);
+          // Add subtle wobble
+          let wobble = sin(t * PI * 2 + frameCount * 0.1) * 5;
+          vertex(px + wobble, py + wobble);
+        }
+        vertex(x2, y2);
+        endShape();
+      }
+      
+      // Draw core line with dynamic color
+      stroke(dynamicColor.r, dynamicColor.g, dynamicColor.b, 180);
+      strokeWeight(thickness);
+      beginShape();
+      vertex(x1, y1);
+      // More detailed core line
+      for(let t = 0; t <= 1; t += 0.1) {
+        let px = bezierPoint(x1, mx + perpX*1.2, mx + perpX*1.2, x2, t);
+        let py = bezierPoint(y1, my + perpY*1.2, my + perpY*1.2, y2, t);
+        let wobble = sin(t * PI * 4 + frameCount * 0.15) * 3;
+        vertex(px + wobble, py + wobble);
+      }
+      vertex(x2, y2);
+      endShape();
+      
+      // Add highlight effect with movement-based intensity
+      stroke(231, 29, 54, 50 + (speedMultiplier * 100));  // red-pantone with variable opacity
+      strokeWeight(thickness/3);
+      beginShape();
+      vertex(x1, y1);
+      for(let t = 0; t <= 1; t += 0.1) {
+        let px = bezierPoint(x1, mx + perpX*0.8, mx + perpX*0.8, x2, t);
+        let py = bezierPoint(y1, my + perpY*0.8, my + perpY*0.8, y2, t);
+        vertex(px, py);
+      }
+      vertex(x2, y2);
+      endShape();
+    }
+
+    // Update the drawElasticBody calls to include unique IDs
+    function drawElasticBody() {
+      // All lines in white with different thicknesses
+      drawElasticLine(leftShoulderX, leftShoulderY, rightShoulderX, rightShoulderY, 8, 
+        {r: 231, g: 29, b: 54}, 'shoulders');
+      drawElasticLine(leftShoulderX, leftShoulderY, hipX2, hipY2, 8, 
+        {r: 231, g: 29, b: 54}, 'leftTorso');
+      drawElasticLine(rightShoulderX, rightShoulderY, hipX, hipY, 8, 
+        {r: 231, g: 29, b: 54}, 'rightTorso');
+      drawElasticLine(hipX, hipY, hipX2, hipY2, 8, 
+        {r: 231, g: 29, b: 54}, 'hips');
+
+      // Arms
+      drawElasticLine(leftShoulderX, leftShoulderY, leftElbowX, leftElbowY, 6, 
+        {r: 231, g: 29, b: 54}, 'leftUpperArm');
+      drawElasticLine(leftElbowX, leftElbowY, leftHandX, leftHandY, 6, 
+        {r: 231, g: 29, b: 54}, 'leftLowerArm');
+      drawElasticLine(rightShoulderX, rightShoulderY, rightElbowX, rightElbowY, 6, 
+        {r: 231, g: 29, b: 54}, 'rightUpperArm');
+      drawElasticLine(rightElbowX, rightElbowY, rightHandX, rightHandY, 6, 
+        {r: 231, g: 29, b: 54}, 'rightLowerArm');
+
+      // Legs
+      drawElasticLine(hipX, hipY, kneeX, kneeY, 7, 
+        {r: 231, g: 29, b: 54}, 'rightUpperLeg');
+      drawElasticLine(hipX2, hipY2, kneeX2, kneeY2, 7, 
+        {r: 231, g: 29, b: 54}, 'leftUpperLeg');
+      drawElasticLine(kneeX, kneeY, ankleX, ankleY, 7, 
+        {r: 231, g: 29, b: 54}, 'rightLowerLeg');
+      drawElasticLine(kneeX2, kneeY2, ankleX2, ankleY2, 7, 
+        {r: 231, g: 29, b: 54}, 'leftLowerLeg');
+
+      // Neck
+      drawElasticLine((leftShoulderX + rightShoulderX)/2, (leftShoulderY + rightShoulderY)/2,
+        noseX, noseY, 5, {r: 231, g: 29, b: 54}, 'neck');
+    }
+
+    drawElasticBody();
+
+    // Add this function to draw the chest vortex
+    function drawChestVortex(x, y) {
+      let growthFactor = getGrowthFactor();
+      
+      // Scale base sizes
+      let vortexSize = 150 * growthFactor;
+      let numRings = 20;
+      let numParticles = 24;
+      let coreSize = 30 * growthFactor;
+      
+      // Calculate chest center
+      let chestX = (leftShoulderX + rightShoulderX) / 2;
+      let chestY = ((leftShoulderY + rightShoulderY) / 2 + (hipY + hipY2) / 2) / 2;
+      
+      // Calculate distances from hands to vortex center
+      let leftHandDist = dist(leftHandX, leftHandY, chestX, chestY);
+      let rightHandDist = dist(rightHandX, rightHandY, chestX, chestY);
+      
+      // Calculate proximity effect and color transition
+      let proximityEffect = map(min(leftHandDist, rightHandDist), 0, 300, 0.5, 0);
+      proximityEffect = constrain(proximityEffect, 0, 0.5);
+      
+      // Color interpolation based on proximity
+      let colorTransition = map(min(leftHandDist, rightHandDist), 100, 300, 1, 0);
+      colorTransition = constrain(colorTransition, 0, 1);
+      
+      // Interpolate between red and white
+      let vortexColor = {
+        r: lerp(231, 253, colorTransition),  // Red to white
+        g: lerp(29, 255, colorTransition),   // Green to white
+        b: lerp(54, 252, colorTransition)    // Blue to white
+      };
+      
+      // Get audio level
+      audioLevel = micStarted ? mic.getLevel() * 3 : 0;
+      let combinedEffect = audioLevel + (proximityEffect * 0.2);
+      
+      // Draw spinning rings
+      noFill();
+      for(let ring = 0; ring < numRings; ring++) {
+        let ringRadius = map(ring, 0, numRings, vortexSize * 0.1, vortexSize);
+        let rotationSpeed = 0.02 + (combinedEffect * 0.1);
+        let rotationOffset = ring * PI/8 + frameCount * (ring % 2 === 0 ? rotationSpeed : -rotationSpeed);
+        let alpha = map(ring, 0, numRings, 150 + (combinedEffect * 100), 20);
+        
+        beginShape();
+        for(let i = 0; i <= numParticles; i++) {
+          let angle = (i * TWO_PI / numParticles) + rotationOffset;
+          let radius = ringRadius + sin(angle * 3 + frameCount * 0.05) * 10;
+          let x = chestX + cos(angle) * radius;
+          let y = chestY + sin(angle) * radius;
+          
+          stroke(vortexColor.r, vortexColor.g, vortexColor.b, alpha);
+          strokeWeight(2 + sin(frameCount * 0.1 + ring) * 1);
+          vertex(x, y);
+        }
+        endShape();
+      }
+      
+      // Draw center glow
+      noStroke();
+      for(let r = coreSize; r > 0; r -= 2) {
+        let alpha = map(r, coreSize, 0, 100 + (combinedEffect * 155), 0);
+        fill(vortexColor.r, vortexColor.g, vortexColor.b, alpha);
+        ellipse(chestX, chestY, r * 2);
+      }
+    }
+
+    // Add this line after drawElasticBody() and before drawing cilia
+    drawChestVortex();
+
+    // Function to draw organic cilia/flagella with reaching behavior
+    function drawCilia(x, y, size, count, color, nearbyPoints) {
+      let growthFactor = getGrowthFactor();
+      
+      // Scale position from center
+      let centerX = (leftShoulderX + rightShoulderX) / 2;
+      let centerY = ((leftShoulderY + rightShoulderY) / 2 + (hipY + hipY2) / 2) / 2;
+      
+      x = centerX + (x - centerX) * growthFactor;
+      y = centerY + (y - centerY) * growthFactor;
+      
+      // Scale size
+      size = size * growthFactor;
+      
+      // Scale nearby points
+      nearbyPoints = nearbyPoints.map(point => {
+        return {
+          x: centerX + (point.x - centerX) * growthFactor,
+          y: centerY + (point.y - centerY) * growthFactor
+        };
+      });
+      
+      // Use the dynamic color instead of the passed color
+      color = getColorBasedOnHandPosition();
+      
+      // Add audio reactivity to size and movement
+      let reactiveSize = size * (1 + audioLevel);  // Size response
+      
+      // Draw base glow
+      noStroke();
+      for (let r = reactiveSize/2; r > 0; r -= 4) {
+        fill(color.r, color.g, color.b, 4 + (audioLevel * 10));
+        ellipse(x, y, r * 3);
+      }
+
+      // Find closest points and their directions
+      let attractions = nearbyPoints.map(point => {
+        let dx = point.x - x;
+        let dy = point.y - y;
+        let dist = sqrt(dx * dx + dy * dy);
+        let angle = atan2(dy, dx);
+        return { dist, angle };
+      });
+
+      for (let i = 0; i < count; i++) {
+        let baseAngle = (i * TWO_PI / count) + frameCount * 0.01;
+        
+        // Find the closest attraction point in this direction
+        let closestAttraction = null;
+        let minAngleDiff = PI/2; // Only consider points within 90 degrees
+        
+        attractions.forEach(attr => {
+          let angleDiff = abs(((attr.angle - baseAngle + PI) % TWO_PI) - PI);
+          if (angleDiff < minAngleDiff) {
+            minAngleDiff = angleDiff;
+            closestAttraction = attr;
+          }
+        });
+
+        // Adjust angle and length based on nearby points
+        let angle = baseAngle;
+        let length = reactiveSize * 2;
+        
+        if (closestAttraction) {
+          // Blend between base angle and attraction angle
+          let blend = map(minAngleDiff, 0, PI/2, 0.6, 0);
+          angle = lerp(baseAngle, closestAttraction.angle, blend);
+          
+          // Extend length based on distance
+          let distanceInfluence = map(closestAttraction.dist, 0, 300, 0.5, 0);
+          length *= (1 + distanceInfluence);
+        }
+
+        // Add wave movement
+        let waveOffset = sin(frameCount * 0.05 + i * 0.5) * (30 + audioLevel * 50);  // Movement
+        length += waveOffset;
+        
+        // Draw organic tentacle
+        beginShape();
+        noFill();
+        stroke(color.r, color.g, color.b, 120);
+        strokeWeight(3 + sin(frameCount * 0.1 + i) * 2 + (audioLevel * 5));
+        
+        let points = [];
+        for (let t = 0; t <= 1; t += 0.1) {
+          let wave = sin(t * PI * 2 + frameCount * 0.1) * (40 + audioLevel * 60);
+          let wave2 = cos(t * PI * 3 + frameCount * 0.15) * (30 + audioLevel * 45);
+          
+          // Add attraction influence to waves
+          if (closestAttraction) {
+            let attractionInfluence = map(t, 0, 1, 0, 1) * minAngleDiff;
+            wave *= (1 - attractionInfluence);
+            wave2 *= (1 - attractionInfluence);
+          }
+          
+          let dx = x + cos(angle) * (length * t) + 
+                   cos(angle + PI/2) * wave +
+                   cos(angle + PI/4) * wave2;
+          let dy = y + sin(angle) * (length * t) + 
+                   sin(angle + PI/2) * wave +
+                   sin(angle + PI/4) * wave2;
+          points.push({x: dx, y: dy});
+        }
+        
+        curveVertex(points[0].x, points[0].y);
+        points.forEach(p => curveVertex(p.x, p.y));
+        curveVertex(points[points.length-1].x, points[points.length-1].y);
+        endShape();
+        
+        // Glowing tips
+        noStroke();
+        let tipSize = 10 + sin(frameCount * 0.2 + i) * 5;
+        for(let g = tipSize; g > 0; g -= 2) {
+          fill(color.r, color.g, color.b, map(g, tipSize, 0, 100, 0));
+          ellipse(points[points.length-1].x, points[points.length-1].y, g * 2);
+        }
+      }
+    }
+
+    // Create array of all body points
+    const bodyPoints = [
+      {x: noseX, y: noseY},
+      {x: leftShoulderX, y: leftShoulderY},
+      {x: rightShoulderX, y: rightShoulderY},
+      {x: leftElbowX, y: leftElbowY},
+      {x: rightElbowX, y: rightElbowY},
+      {x: leftHandX, y: leftHandY},
+      {x: rightHandX, y: rightHandY},
+      {x: hipX, y: hipY},
+      {x: hipX2, y: hipY2},
+      {x: kneeX, y: kneeY},
+      {x: kneeX2, y: kneeY2},
+      {x: ankleX, y: ankleY},
+      {x: ankleX2, y: ankleY2}
+    ];
+
+    // Draw cilia with nearby point awareness
+    drawCilia(noseX, noseY, 90, 28, colors.head, 
+             bodyPoints.filter(p => p.x !== noseX || p.y !== noseY));
+    
+    drawCilia(leftShoulderX, leftShoulderY, 70, 20, colors.torso,
+             bodyPoints.filter(p => p.x !== leftShoulderX || p.y !== leftShoulderY));
+    
+    drawCilia(rightShoulderX, rightShoulderY, 70, 20, colors.torso,
+             bodyPoints.filter(p => p.x !== rightShoulderX || p.y !== rightShoulderY));
+    
+    drawCilia(leftElbowX, leftElbowY, 60, 16, colors.arms,
+             bodyPoints.filter(p => p.x !== leftElbowX || p.y !== leftElbowY));
+    
+    drawCilia(rightElbowX, rightElbowY, 60, 16, colors.arms,
+             bodyPoints.filter(p => p.x !== rightElbowX || p.y !== rightElbowY));
+    
+    drawCilia(leftHandX, leftHandY, 80, 24, colors.hands,
+             bodyPoints.filter(p => p.x !== leftHandX || p.y !== leftHandY));
+    
+    drawCilia(rightHandX, rightHandY, 80, 24, colors.hands,
+             bodyPoints.filter(p => p.x !== rightHandX || p.y !== rightHandY));
+    
+    drawCilia(hipX, hipY, 70, 20, colors.torso,
+             bodyPoints.filter(p => p.x !== hipX || p.y !== hipY));
+    
+    drawCilia(hipX2, hipY2, 70, 20, colors.torso,
+             bodyPoints.filter(p => p.x !== hipX2 || p.y !== hipY2));
+    
+    drawCilia(kneeX, kneeY, 60, 16, colors.legs,
+             bodyPoints.filter(p => p.x !== kneeX || p.y !== kneeY));
+    
+    drawCilia(kneeX2, kneeY2, 60, 16, colors.legs,
+             bodyPoints.filter(p => p.x !== kneeX2 || p.y !== kneeY2));
+    
+    drawCilia(ankleX, ankleY, 50, 14, colors.legs,
+             bodyPoints.filter(p => p.x !== ankleX || p.y !== ankleY));
+    
+    drawCilia(ankleX2, ankleY2, 50, 14, colors.legs,
+             bodyPoints.filter(p => p.x !== ankleX2 || p.y !== ankleY2));
+    
+    drawCilia(rightFootX, rightFootY, 50, 14, colors.legs,
+             bodyPoints.filter(p => p.x !== rightFootX || p.y !== rightFootY));
+    
+    drawCilia(leftFootX, leftFootY, 50, 14, colors.legs,
+             bodyPoints.filter(p => p.x !== leftFootX || p.y !== leftFootY));
+    
+    drawCilia(rightFoot2X, rightFoot2Y, 50, 14, colors.legs,
+             bodyPoints.filter(p => p.x !== rightFoot2X || p.y !== rightFoot2Y));
+    
+    drawCilia(leftFoot2X, leftFoot2Y, 50, 14, colors.legs,
+             bodyPoints.filter(p => p.x !== leftFoot2X || p.y !== leftFoot2Y));
+
+    // Update text color to red-pantone with low opacity
+    fill('rgba(231, 29, 54, 0.15)');
+    textSize(letterSize * 0.5);
     text("nose", noseX + 20, noseY); // nose
     text("left shoulder", leftShoulderX - 120, leftShoulderY); // left shoulder
     text("right shoulder", rightShoulderX + 20, rightShoulderY); // right shoulder
@@ -253,39 +831,10 @@ function draw() {
     text("right foot", rightFootX + 20, rightFootY); // right foot
     text("left foot", leftFootX  - 120, leftFootY); // left foot
 
-
-      // draw points
-   
-      strokeWeight(40);
-      // stroke('red');
-      
-      // fill('white');
-      ellipse(noseX, noseY, ellipseSize + 100, ellipseSize + 100); // nose
-  
-    
-      ellipse(leftShoulderX, leftShoulderY, ellipseSize, ellipseSize); // left shoulder
-      ellipse(rightShoulderX, rightShoulderY, ellipseSize, ellipseSize); // right shoulder
-      ellipse(leftHandX, leftHandY, ellipseSize, ellipseSize); // left hand
-      ellipse(rightHandX, rightHandY, ellipseSize, ellipseSize); // right hand
-      ellipse(leftElbowX, leftElbowY, ellipseSize, ellipseSize); // left elbow
-      ellipse(rightElbowX, rightElbowY, ellipseSize, ellipseSize); // right elbow
-      ellipse(rightWristX, rightWristY, ellipseSize, ellipseSize); // right wrist
-      ellipse(leftWristX, leftWristY, ellipseSize, ellipseSize); // left wrist
-      ellipse(hipX, hipY, ellipseSize, ellipseSize); // right hip
-      ellipse(hipX2, hipY2, ellipseSize, ellipseSize); // left hip
-      ellipse(kneeX, kneeY, ellipseSize, ellipseSize); // right knee
-      ellipse(kneeX2, kneeY2, ellipseSize, ellipseSize); // left knee
-      ellipse(ankleX, ankleY, ellipseSize, ellipseSize); // right ankle
-      ellipse(ankleX2, ankleY2, ellipseSize, ellipseSize); // left ankle
-      ellipse(rightFootX, rightFootY, ellipseSize, ellipseSize); // right foot
-      ellipse(leftFootX, leftFootY, ellipseSize, ellipseSize); // left foot
-      ellipse(rightFoot2X, rightFoot2Y, ellipseSize, ellipseSize); // right foot2
-      ellipse(leftFoot2X, leftFoot2Y, ellipseSize, ellipseSize); // left foot2
-
-    
-
     pop();
 
+    // Remove this entire block
+    /*
     let d = dist(rightHandX, rightHandY, leftHandX, leftHandY);
 
     if (d < 100) 
@@ -294,10 +843,10 @@ function draw() {
       strokeWeight(5);
       line(rightHandX, rightHandY* 0.60, width, 0); // right hand to top
       line(leftHandX,leftHandY* 0.60, 0, 0); // left hand to top
-  
+    */
    
   } else {  // if no hand tracking
-  noStroke();
+    noStroke();
   }
   }
 
@@ -370,4 +919,11 @@ function keyPressed() {
           soundFile.play();
       }
   }
+}
+
+// Add this function
+function startMic() {
+  userStartAudio();  // This is important for browsers that require user interaction
+  mic.start();
+  micStarted = true;
 }
